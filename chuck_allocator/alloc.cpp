@@ -25,7 +25,9 @@ class Chunks_storage {
     Chunk* end;
     int n_chunks;
     const int chank_size = 100;
+
  public:
+    static int ref_counts;
     uint8_t* allocate(const std::size_t size);
     Chunk* add_new_chunk();
 
@@ -43,6 +45,8 @@ Chunk* Chunks_storage :: add_new_chunk() {
     }
     return(end);
 }
+
+int Chunks_storage :: ref_counts = 0;
 
 uint8_t* Chunks_storage :: allocate(const std::size_t size) {
 
@@ -74,7 +78,6 @@ struct allocator_my {
     using difference_type = std::ptrdiff_t;
 
     Chunks_storage* chunks;
-    static int  ref_counts;
 
     //rebind (deprecated in C++17)(removed in C++20)	template< class U > struct rebind { typedef allocator<U> other; };
 
@@ -84,8 +87,11 @@ struct allocator_my {
  public:
     //creates a new allocator instance
     //(public member function)
-    allocator_my() : chunks(new Chunks_storage()) { ref_counts = 1; }
+    allocator_my() : chunks(new Chunks_storage()) {}
+    allocator_my(allocator_my<T>& copy);
     ~allocator_my();
+    allocator_my<T>& operator=(allocator_my<T> copy);
+
 
 
     //(public member function)
@@ -110,7 +116,7 @@ struct allocator_my {
 
 };
 
-template<class T> int allocator_my<T> :: ref_counts = 0;
+
 
 
 template< class T > T* allocator_my<T> :: allocate(const size_type size) {
@@ -132,12 +138,27 @@ template< class T > void allocator_my<T> :: destroy(T* ptr) {
 //    return (new (ptr) T(args...));
 //}
 
+template< class T > allocator_my<T> :: allocator_my(allocator_my<T>& copy) {
+    chunks = copy.chunks;
+    chunks->ref_counts++;
 
-template< class T > allocator_my<T> :: ~allocator_my() {
-    if (ref_counts <= 1) {
+}
+
+template< class T > allocator_my<T>& allocator_my<T> :: operator=(allocator_my<T> copy) {
+    if (chunks->ref_counts <= 1) {
         delete chunks;
     }
-    ref_counts--;
+    chunks->ref_counts--;
+    chunks = copy.chunks;
+    chunks->ref_counts++;
+}
+
+
+template< class T > allocator_my<T> :: ~allocator_my() {
+    if (chunks->ref_counts <= 1) {
+        delete chunks;
+    }
+    chunks->ref_counts--;
 }
 
 
