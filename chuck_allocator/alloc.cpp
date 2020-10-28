@@ -46,7 +46,7 @@ Chunk* Chunks_storage :: add_new_chunk() {
     return(end);
 }
 
-int Chunks_storage :: ref_counts = 0;
+int Chunks_storage :: ref_counts = 1;
 
 uint8_t* Chunks_storage :: allocate(const std::size_t size) {
 
@@ -68,7 +68,8 @@ uint8_t* Chunks_storage :: allocate(const std::size_t size) {
 }
 
 template< class T >
-struct allocator_my {
+class allocator_my {
+  public:
     using value_type = T;
     using pointer =  T*;
     using const_pointer  = const T*;
@@ -76,6 +77,10 @@ struct allocator_my {
     using const_reference = const T&;
     using size_type = std::size_t;
     using difference_type = std::ptrdiff_t;
+    template< class U >
+    struct rebind {
+        using other =  allocator_my<U>;
+    };
 
     Chunks_storage* chunks;
 
@@ -103,7 +108,7 @@ struct allocator_my {
     //deallocates storage
     void deallocate(T* p, size_t size);
 
-    template<class T, class... Args>
+    template < class T, class... Args>
        void construct(T *p, Args &&...args) {
            new ((void *) p) T(std::forward<Args>(args)...);
        }
@@ -134,9 +139,7 @@ template< class T > void allocator_my<T> :: destroy(T* ptr) {
 }
 
 
-//template< class T, class... Args > void  allocator_my<T> :: construct( T* ptr, Args&&... args ) {
-//    return (new (ptr) T(args...));
-//}
+
 
 template< class T > allocator_my<T> :: allocator_my(allocator_my<T>& copy) {
     chunks = copy.chunks;
