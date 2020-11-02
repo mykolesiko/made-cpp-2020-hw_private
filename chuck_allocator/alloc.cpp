@@ -98,7 +98,10 @@ class allocator_my {
     allocator_my<T>& operator=(const allocator_my<T>& copy);
     //(public member function)
     //allocates uninitialized storage
-    T* allocate(const size_type n );
+    //T* allocate(const size_type n );
+    pointer allocate(const size_type size) {
+        return reinterpret_cast<T*>(chunks->allocate(size * sizeof(value_type)));
+    };
     //(public member function)
     //deallocates storage
     void deallocate(T* p, size_t size) {};
@@ -111,9 +114,9 @@ class allocator_my {
     void destroy(T* ptr);
 };
 
-template< class T > T* allocator_my<T> :: allocate(const size_type size) {
-    return reinterpret_cast<T*>(chunks->allocate(size * sizeof(value_type)));
-};
+//template< class T > pointer allocator_my<T> :: allocate(const size_type size) {
+//    return reinterpret_cast<T*>(chunks->allocate(size * sizeof(value_type)));
+//};
 
 template< class T > void allocator_my<T> :: destroy(T* ptr) {
     ptr->~T();
