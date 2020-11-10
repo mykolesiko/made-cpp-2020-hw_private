@@ -12,7 +12,6 @@ namespace task {
 template <class T> class WeakPtr;
 
 
-
 template<typename T>
 class UniquePtr {
 private:
@@ -25,12 +24,6 @@ public:
 
     UniquePtr(UniquePtr&& other) noexcept: ptr(other.ptr) {
         other.ptr = nullptr;
-    }
-
-    UniquePtr& operator = (std::nullptr_t) {
-        delete ptr;
-        ptr = nullptr;
-        return *this;
     }
 
     UniquePtr& operator = (UniquePtr&& other) {
@@ -80,33 +73,39 @@ public:
     UniquePtr& operator = (const UniquePtr &other) = delete;
 };
 
+struct counter{
+    counter(): countShared(1), countWeak(0) {}
+    size_t countShared;
+    size_t countWeak;
+};
+
 template<typename T>
 class SharedPtr {
 private:
     T* ptr = nullptr;
-    size_t* refPtr = nullptr;
+    counter* refPtr = nullptr;
 
     void removeRef() {
         if (ptr) {
-            if (--(*refPtr) == 0) {
+            if (--(refPtr->countShared) == 0) {
                 delete ptr;
                 //delete refPtr;
             }
         }
     }
 
-public:
+ public:
     SharedPtr() {}
 
     explicit SharedPtr(T* _ptr): ptr(_ptr) {
         if (ptr) {
-            refPtr = new size_t(1);
+            refPtr = new counter();
         }
     }
 
     SharedPtr(const SharedPtr& other): ptr(other.ptr), refPtr(other.refPtr) {
         if (ptr) {
-            ++(*refPtr);
+            ++(refPtr->countShared);
         }
     }
 
@@ -118,7 +117,7 @@ public:
         ptr = p.get();
         refPtr = p.get_ref();
         if (refPtr) {
-            (*refPtr)++;
+            (refPtr->countShared)++;
         }
     }
 
@@ -126,7 +125,7 @@ public:
         if (refPtr == nullptr) {
             return (0);
         } else {
-            return(*refPtr);
+            return(refPtr->countShared);
         }
     }
 
@@ -148,7 +147,7 @@ public:
         ptr = other.ptr;
         refPtr = other.refPtr;
         if (ptr) {
-            ++(*refPtr);
+            ++(refPtr->countShared);
         }
         return *this;
     }
@@ -167,6 +166,11 @@ public:
 
     ~SharedPtr() {
         removeRef();
+        if (refPtr != nullptr) {
+            if ((refPtr->countShared == 0) && (refPtr->countWeak == 0)) {
+                delete(refPtr);
+            }
+        }
     }
 
     T& operator * () {
@@ -181,13 +185,11 @@ public:
         return ptr;
     }
 
-
-
     void reset(T* _ptr) {
         removeRef();
         ptr = _ptr;
         if (ptr) {
-            refPtr = new size_t(1);
+            refPtr = new counter();
         } else {
             refPtr = nullptr;
         }
@@ -202,7 +204,7 @@ public:
     T* get() const {
         return ptr;
     }
-    size_t* get_ref() const {
+    counter* get_ref() const {
         return refPtr;
     }
 
@@ -211,17 +213,14 @@ public:
     }
 };
 
-
-
-
-
 template <class T>
 class WeakPtr{
 
 public:
     WeakPtr(): ptr(nullptr), refPtr(nullptr) {}
     WeakPtr( const SharedPtr<T>& r ) noexcept {
-       // refPtr = refPtr;
+        refPtr = r.get_ref();
+        refPtr->countWeak++;
     }
     WeakPtr( WeakPtr&& r ) noexcept {
         refPtr  = r.get_ref();
@@ -230,16 +229,17 @@ public:
 
     ~WeakPtr() {
         if (refPtr) {
-           if (*refPtr == 0) {
+           refPtr->countWeak--;
+           if ((refPtr->countShared == 0) && (refPtr->countWeak == 0)) {
                delete(refPtr);
            }
         }
     }
 
     T* ptr = nullptr;
-    size_t* refPtr = nullptr;
+    counter* refPtr = nullptr;
 
-    size_t* get_ref() const {
+    counter* get_ref() const {
         return refPtr;
     }
 
@@ -247,19 +247,25 @@ public:
         return ptr;
     }
 
-
-
-
     WeakPtr& operator=( const SharedPtr<T>& r ) noexcept {
         refPtr = r.get_ref();
+        if (refPtr) {
+            refPtr->countWeak++;
+        }
         return(*this);
     }
     WeakPtr( const WeakPtr<T>& r ) noexcept {
         refPtr = r.get_ref();
+        if (refPtr) {
+            refPtr->countWeak++;
+        }
     }
 
     WeakPtr& operator=( const WeakPtr<T>& r ) noexcept {
         refPtr = r.get_ref();
+        if (refPtr) {
+            refPtr->countWeak++;
+        }
         return(*this);
     }
     WeakPtr& operator=( WeakPtr&& r ) noexcept {
@@ -271,11 +277,14 @@ public:
         if (refPtr == nullptr) {
             return(0);
         }
-        return (*refPtr);
+        return (refPtr->countShared);
     }
 
     bool expired() const noexcept {
-        return ((*refPtr) == 0);
+        if (refPtr)
+        {
+            return (refPtr->countShared == 0);
+        }
     }
 
     void reset() noexcept {
